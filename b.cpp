@@ -415,14 +415,9 @@ public:
 	}
 
 
-	bool del(const T&key, bool p = false) {
+	bool del(const T&key) {
 
 		auto res = delete_rec(root, key);		
-
-
-		if(p) {
-			std::cout << root->keys.size() << " " <<  root->next.size() << std::endl;
-		}
 
 		if (root->keys.size() == 0 && root->next.size() == 1) {
 			root = 	root->next.back();
