@@ -1,7 +1,7 @@
 ## A classe Btree
 
 
-```Btree```< $ tipo\  de\  dado\  armazenado $  ,  $ ordem\  da\  arvore $ >
+```Btree```< $tipo\  de\  dado\  armazenado$  ,  $ordem\  da\  arvore$ >
 
 e tem os metodos:
 
