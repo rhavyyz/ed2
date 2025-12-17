@@ -350,6 +350,56 @@ private:
 			merge(node, key_node);
 
 			if (node->keys.size() < o) {
+
+
+				// Tenta pegar um elemento da esquerda
+				if(node->left_neighbor != nullptr && node->left_neighbor->keys.size() > o) {
+					auto to_swap = node->left_neighbor->keys.back();
+					node->left_neighbor->keys.pop_back();
+
+
+
+					auto next_swap = node->left_neighbor->next.back();
+					node->left_neighbor->keys.pop_back();
+
+					next_swap->left_neighbor->right_neighbor = nullptr;
+					next_swap->left_neighbor = nullptr;
+
+					next_swap->right_neighbor = node->next.front();
+	
+					node->next[0]->left_neighbor = next_swap;
+
+
+					node->next.push_back(next_swap);
+
+					for(int i = node->next.size() - 2; i >= 0; i--)
+						std::swap( node->next[i], node->next[i+1] );
+
+					return {true, left, to_swap};
+				}
+
+				// Tenta pegar um elemento da direita
+				if(node->right_neighbor != nullptr && node->right_neighbor->keys.size() > o) {
+					auto to_swap = node->right_neighbor->keys.front();
+					remove_from_vec<T>(node->right_neighbor->keys ,node->right_neighbor->keys.front());
+
+
+					auto next_swap = node->right_neighbor->next.front();
+					remove_from_vec(node->right_neighbor->next ,next_swap);
+
+					next_swap->right_neighbor->left_neighbor = nullptr;
+					next_swap->right_neighbor = nullptr;
+
+					next_swap->left_neighbor = node->next.back();
+					node->next[node->next.size()-1]  =  next_swap;
+
+					node->next.push_back(next_swap);
+
+					return {true, right, to_swap};
+				}
+
+
+
 				if(node->left_neighbor != nullptr) {
 					return {true, direction::none, key, left};
 				}
