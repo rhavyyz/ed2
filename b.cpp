@@ -213,7 +213,7 @@ private:
 
 	void merge(Node*node, int pos) {
 
-		int middle = node->keys[pos];
+		T middle = node->keys[pos];
 		remove_from_vec<T>(node->keys, middle);
 
 		auto child = node->next[pos];
