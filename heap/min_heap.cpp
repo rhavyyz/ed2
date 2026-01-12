@@ -14,14 +14,18 @@ class AVLNode
 {
 public:
     int priority;
-    std::vector<int> indices;
+    std::vector<int> indices; // Usado quando permite duplicatas
+    int single_index;         // Usado quando não permite duplicatas
     AVLNode *left;
     AVLNode *right;
     int height;
 
-    AVLNode(int p, int idx) : priority(p), left(nullptr), right(nullptr), height(1)
+    AVLNode(int p, int idx, bool allow_duplicates) : priority(p), single_index(idx), left(nullptr), right(nullptr), height(1)
     {
-        indices.push_back(idx);
+        if (allow_duplicates)
+        {
+            indices.push_back(idx);
+        }
     }
 };
 
@@ -29,6 +33,7 @@ class AVLTree
 {
 private:
     AVLNode *root;
+    bool allow_duplicates;
 
     int height(AVLNode *node)
     {
@@ -108,7 +113,7 @@ private:
     {
         if (!node)
         {
-            return new AVLNode(priority, index);
+            return new AVLNode(priority, index, allow_duplicates);
         }
 
         if (priority < node->priority)
@@ -121,7 +126,12 @@ private:
         }
         else
         {
-            node->indices.push_back(index);
+            // Prioridade já existe
+            if (allow_duplicates)
+            {
+                node->indices.push_back(index);
+            }
+            // Se não permite duplicatas, não faz nada (ignora)
             return node;
         }
 
@@ -198,17 +208,87 @@ private:
         }
     }
 
+    void print_helper(AVLNode *node, const std::string &prefix, bool isLeft)
+    {
+        if (!node)
+            return;
+
+        std::cout << prefix;
+        std::cout << (isLeft ? "├──" : "└──");
+
+        std::cout << "[" << node->priority << "] (h=" << node->height
+                  << ", bf=" << balance_factor(node) << ") → ";
+
+        if (allow_duplicates)
+        {
+            std::cout << "índices: ";
+            for (size_t i = 0; i < node->indices.size(); i++)
+            {
+                std::cout << node->indices[i];
+                if (i < node->indices.size() - 1)
+                    std::cout << ",";
+            }
+        }
+        else
+        {
+            std::cout << "índice: " << node->single_index;
+        }
+        std::cout << "\n";
+
+        if (node->left || node->right)
+        {
+            if (node->left)
+            {
+                print_helper(node->left, prefix + (isLeft ? "│   " : "    "), true);
+            }
+            else
+            {
+                std::cout << prefix << (isLeft ? "│   " : "    ") << "├──[null]\n";
+            }
+
+            if (node->right)
+            {
+                print_helper(node->right, prefix + (isLeft ? "│   " : "    "), false);
+            }
+            else
+            {
+                std::cout << prefix << (isLeft ? "│   " : "    ") << "└──[null]\n";
+            }
+        }
+    }
+
+    void in_order_helper(AVLNode *node)
+    {
+        if (!node)
+            return;
+        in_order_helper(node->left);
+        std::cout << node->priority << " ";
+        in_order_helper(node->right);
+    }
+
+    int count_nodes(AVLNode *node)
+    {
+        if (!node)
+            return 0;
+        return 1 + count_nodes(node->left) + count_nodes(node->right);
+    }
+
 public:
-    AVLTree() : root(nullptr) {}
+    AVLTree(bool allow_dup = true) : root(nullptr), allow_duplicates(allow_dup) {}
 
     ~AVLTree()
     {
         destroy(root);
     }
 
-    void insert(int priority, int index)
+    bool insert(int priority, int index)
     {
+        size_t size_before = count_nodes(root);
         root = insert_helper(root, priority, index);
+        size_t size_after = count_nodes(root);
+
+        // Retorna false se tentou inserir duplicata e não permite
+        return size_after > size_before || allow_duplicates;
     }
 
     void remove(int priority)
@@ -219,7 +299,29 @@ public:
     std::vector<int> *find(int priority)
     {
         AVLNode *node = search_helper(root, priority);
-        return node ? &(node->indices) : nullptr;
+        if (!node)
+            return nullptr;
+
+        if (allow_duplicates)
+        {
+            return &(node->indices);
+        }
+        else
+        {
+            // Cria vetor temporário com índice único para compatibilidade
+            static std::vector<int> temp_vec;
+            temp_vec.clear();
+            temp_vec.push_back(node->single_index);
+            return &temp_vec;
+        }
+    }
+
+    int *find_single(int priority)
+    {
+        AVLNode *node = search_helper(root, priority);
+        if (!node)
+            return nullptr;
+        return allow_duplicates ? (node->indices.empty() ? nullptr : &node->indices[0]) : &node->single_index;
     }
 
     void update_index(int priority, int old_index, int new_index)
@@ -227,12 +329,22 @@ public:
         AVLNode *node = search_helper(root, priority);
         if (node)
         {
-            for (auto &idx : node->indices)
+            if (allow_duplicates)
             {
-                if (idx == old_index)
+                for (auto &idx : node->indices)
                 {
-                    idx = new_index;
-                    break;
+                    if (idx == old_index)
+                    {
+                        idx = new_index;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                if (node->single_index == old_index)
+                {
+                    node->single_index = new_index;
                 }
             }
         }
@@ -243,17 +355,63 @@ public:
         AVLNode *node = search_helper(root, priority);
         if (node)
         {
-            auto it = std::find(node->indices.begin(), node->indices.end(), index);
-            if (it != node->indices.end())
+            if (allow_duplicates)
             {
-                node->indices.erase(it);
+                auto it = std::find(node->indices.begin(), node->indices.end(), index);
+                if (it != node->indices.end())
+                {
+                    node->indices.erase(it);
 
-                if (node->indices.empty())
+                    if (node->indices.empty())
+                    {
+                        remove(priority);
+                    }
+                }
+            }
+            else
+            {
+                // Sem duplicatas, sempre remove o nó
+                if (node->single_index == index)
                 {
                     remove(priority);
                 }
             }
         }
+    }
+
+    void print()
+    {
+        if (!root)
+        {
+            std::cout << "  [Árvore vazia]\n";
+            return;
+        }
+        std::cout << "  Raiz:\n";
+        print_helper(root, "  ", false);
+    }
+
+    void print_in_order()
+    {
+        std::cout << "  In-order: ";
+        if (!root)
+        {
+            std::cout << "[vazia]";
+        }
+        else
+        {
+            in_order_helper(root);
+        }
+        std::cout << "\n";
+    }
+
+    int size()
+    {
+        return count_nodes(root);
+    }
+
+    int get_height()
+    {
+        return height(root);
     }
 };
 
@@ -266,6 +424,7 @@ private:
     pair<int, T> data[max_size];
     int next_inclusion = 0;
     AVLTree priority_to_indices;
+    bool allow_duplicate_priorities;
 
     int get_child(int pos, int child_num)
     {
@@ -353,26 +512,29 @@ private:
         priority_to_indices.remove_index(priority, index);
     }
 
-    void print_node(int node, int tab)
+    void print_node(int node, const std::string &prefix = "", bool isLast = true)
     {
         if (node >= next_inclusion)
             return;
-        for (int i = 0; i < tab; i++)
-        {
-            cout << " ";
-        }
 
-        if (tab)
-        {
-            cout << "└─ ";
-        }
+        cout << prefix;
+        cout << (isLast ? "└── " : "├── ");
+        cout << data[node].first << "\n";
 
-        cout << data[node].first << std::endl;
-
+        // Coletar todos os filhos
+        std::vector<int> children;
         int child = -1, i = 0;
         while ((child = get_child(node, i++)) != -1)
         {
-            print_node(child, tab + 2);
+            children.push_back(child);
+        }
+
+        // Imprimir cada filho
+        for (size_t j = 0; j < children.size(); j++)
+        {
+            bool lastChild = (j == children.size() - 1);
+            std::string newPrefix = prefix + (isLast ? "    " : "│   ");
+            print_node(children[j], newPrefix, lastChild);
         }
     }
 
@@ -381,6 +543,16 @@ public:
     {
         if (next_inclusion == max_size)
             return false;
+
+        // Se não permite duplicatas, verificar se já existe
+        if (!allow_duplicate_priorities)
+        {
+            if (priority_to_indices.find(value.first) != nullptr)
+            {
+                std::cout << "   ⚠️  Prioridade " << value.first << " já existe. Inserção ignorada (duplicatas não permitidas).\n";
+                return false;
+            }
+        }
 
         data[next_inclusion] = value;
         add_to_map(value.first, next_inclusion);
@@ -422,13 +594,16 @@ public:
 
     void print()
     {
-        print_node(0, 0);
-
-        cout << std::endl;
-
+        if (next_inclusion == 0)
+        {
+            cout << "  [Heap vazio]\n";
+            return;
+        }
+        print_node(0);
+        cout << "\nArray: ";
         for (int i = 0; i < next_inclusion; i++)
             cout << data[i].first << " ";
-        cout << std::endl;
+        cout << "\n";
     }
 
     bool promote(int old_priority, int new_priority)
@@ -484,8 +659,26 @@ public:
         return priority_to_indices.find(priority);
     }
 
-    HeapPriorityQueue(std::function<bool(int, int)> priority_function = [](int a, int b)
-                      { return a < b; })
+    void print_avl()
+    {
+        priority_to_indices.print();
+    }
+
+    void print_in_order()
+    {
+        priority_to_indices.print_in_order();
+    }
+
+    void print_avl_stats()
+    {
+        std::cout << "  ├─ Nós na AVL: " << priority_to_indices.size() << "\n";
+        std::cout << "  ├─ Altura da AVL: " << priority_to_indices.get_height() << "\n";
+        std::cout << "  └─ Altura teórica min: " << (int)log2(priority_to_indices.size() + 1) << "\n";
+    }
+
+    HeapPriorityQueue(bool allow_dup = true, std::function<bool(int, int)> priority_function = [](int a, int b)
+                                             { return a < b; })
+        : priority_to_indices(allow_dup), allow_duplicate_priorities(allow_dup)
     {
         this->priority_function = priority_function;
     }
@@ -545,97 +738,123 @@ void q3()
 
 void q4(std::vector<int> &to_add_value)
 {
-    // Min-heap com AVL
-    HeapPriorityQueue<int, 2, 50> heap;
+    cout << "\n=== CONFIGURAÇÃO: Heap com AVL ===\n\n";
+    cout << "Modos disponíveis:\n";
+    cout << "  [COM duplicatas] - Nó AVL usa vector<int> indices\n";
+    cout << "  [SEM duplicatas] - Nó AVL usa int único, ignora repetições\n\n";
+    cout << "Permitir prioridades duplicadas? (s/n): ";
 
-    cout << "=== FASE 1: Inserindo elementos no heap ===\n";
-    cout << "Valores: ";
-    for (auto v : to_add_value)
-        cout << v << " ";
-    cout << "\n\n";
+    char choice;
+    std::cin >> choice;
+    bool allow_duplicates = (choice == 's' || choice == 'S');
 
-    for (auto a : to_add_value)
+    cout << "\nModo: " << (allow_duplicates ? "COM" : "SEM") << " duplicatas\n";
+    cout << std::string(50, '-') << "\n\n";
+
+    HeapPriorityQueue<int, 2, 50> heap(allow_duplicates);
+
+    cout << "=== Inserções Iniciais (primeiros 4 elementos) ===\n\n";
+
+    std::vector<int> first_values = {to_add_value[0], to_add_value[1], to_add_value[2], to_add_value[3]};
+
+    for (auto a : first_values)
     {
-        cout << "Inserindo " << a << " (prioridade=" << a << ")\n";
+        cout << "\n>> Inserindo: " << a << "\n";
         heap.insert({a, a});
+
+        cout << "\nHeap:\n";
+        heap.print();
+
+        cout << "\nAVL:\n";
+        heap.print_avl();
+
+        cout << "\n"
+             << std::string(50, '-') << "\n";
     }
 
-    cout << "\n=== Estrutura do Heap ===\n";
+    cout << "\n>> Inserindo elementos restantes: ";
+    for (size_t i = 4; i < to_add_value.size(); i++)
+    {
+        cout << to_add_value[i] << " ";
+        heap.insert({to_add_value[i], to_add_value[i]});
+    }
+    cout << "\n\n"
+         << std::string(50, '=') << "\n";
+    cout << "=== ESTRUTURAS FINAIS ===\n\n";
+
+    cout << "Heap completo:\n";
     heap.print();
 
-    // Demonstrar busca com AVL
-    cout << "\n\n╔══════════════════════════════════════════════════════════════════╗\n";
-    cout << "║  DEMONSTRAÇÃO: Busca com AVL vs Busca Linear                     ║\n";
-    cout << "╚══════════════════════════════════════════════════════════════════╝\n\n";
+    cout << "\nAVL completa:\n";
+    heap.print_avl();
 
-    std::vector<int> priorities_to_search = {15, -3, 25, 5, 100};
+    cout << "\nStats finais:\n";
+    heap.print_avl_stats();
+    heap.print_in_order();
 
-    cout << "┌─────────────┬──────────────┬─────────────────────────────────┐\n";
-    cout << "│  Prioridade │  Encontrado  │  Método                         │\n";
-    cout << "├─────────────┼──────────────┼─────────────────────────────────┤\n";
+    cout << "\n\n"
+         << std::string(50, '=') << "\n";
+    cout << "=== TESTE DE BUSCAS NA AVL ===\n\n";
+
+    std::vector<int> priorities_to_search = {15, -3, 25, 5};
 
     for (auto priority : priorities_to_search)
     {
-        // Busca com AVL (O(log n))
+        cout << "Buscar " << priority << ": ";
         auto indices_avl = heap.find_indices_by_priority(priority);
-
-        cout << "│ " << std::setw(11) << priority << " │ ";
 
         if (indices_avl)
         {
-            cout << std::setw(12) << "SIM" << " │ ";
-            cout << "AVL (O(log n)) - Índice: " << std::setw(2) << (*indices_avl)[0];
+            cout << "Encontrado - índice(s): ";
+            for (auto idx : *indices_avl)
+            {
+                cout << idx << " ";
+            }
+            cout << "(O(log n) = ~" << (int)log2(heap.size()) << " comparações)\n";
         }
         else
         {
-            cout << std::setw(12) << "NÃO" << " │ ";
-            cout << "AVL (O(log n)) - Não encontrado   ";
+            cout << "Não encontrado\n";
         }
-        cout << " │\n";
     }
 
-    cout << "└─────────────┴──────────────┴─────────────────────────────────┘\n";
-
-    // Demonstrar promote usando busca AVL
-    cout << "\n\n╔══════════════════════════════════════════════════════════════════╗\n";
-    cout << "║  DEMONSTRAÇÃO: Promote usando busca AVL                          ║\n";
-    cout << "╚══════════════════════════════════════════════════════════════════╝\n\n";
+    cout << "\n\n"
+         << std::string(50, '=') << "\n";
+    cout << "=== TESTE DE PROMOTE ===\n\n";
 
     vector<pair<int, int>> promotions = {
-        {15, -10}, // Promover prioridade 15 para -10 (maior prioridade)
-        {25, 0},   // Promover prioridade 25 para 0
-        {5, -5}    // Promover prioridade 5 para -5
-    };
+        {15, -10},
+        {10, 2}};
 
     for (auto [old_priority, new_priority] : promotions)
     {
-        cout << "\n--- Promovendo prioridade " << old_priority << " → " << new_priority << " ---\n";
-
-        // Verificar se existe (busca AVL O(log n))
+        cout << "\n>> Promote: " << old_priority << " → " << new_priority << "\n";
         auto indices_before = heap.find_indices_by_priority(old_priority);
 
         if (indices_before)
         {
-            cout << "✓ Elemento encontrado via AVL em O(log n)\n";
-            cout << "  Posição no heap antes: índice " << (*indices_before)[0] << "\n";
+            cout << "Antes: prioridade " << old_priority << " no índice " << (*indices_before)[0] << "\n";
 
-            // Executar promote
             bool success = heap.promote(old_priority, new_priority);
 
             if (success)
             {
                 auto indices_after = heap.find_indices_by_priority(new_priority);
-                cout << "✓ Promote executado com sucesso!\n";
-                cout << "  Posição no heap depois: índice " << (*indices_after)[0] << "\n";
+                cout << "Depois: prioridade " << new_priority << " no índice " << (*indices_after)[0] << "\n\n";
 
-                cout << "\nHeap após promote:\n";
+                cout << "AVL atualizada:\n";
+                heap.print_avl();
+
+                cout << "\nHeap atualizado:\n";
                 heap.print();
             }
         }
         else
         {
-            cout << "✗ Elemento com prioridade " << old_priority << " não encontrado\n";
+            cout << "Erro: Prioridade " << old_priority << " não encontrada\n";
         }
+
+        cout << std::string(50, '-') << "\n";
     }
 }
 
@@ -673,7 +892,6 @@ int main()
         h.print();
     }
 
-        
     cout << "\n\n╔══════════════════════════════════════════════════════════════════╗\n";
     cout << "║  Questão 4 - Adição de uma AVL para busca eficiente              ║\n";
     cout << "╚══════════════════════════════════════════════════════════════════╝\n\n";
