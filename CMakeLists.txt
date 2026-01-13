@@ -13,3 +13,10 @@ set_property (TARGET b
   PROPERTY
     CXX_STANDARD 20
 )
+
+add_executable(min_heap ${PROJECT_SOURCE_DIR}/heap/min_heap.cpp )
+
+set_property (TARGET min_heap
+  PROPERTY
+    CXX_STANDARD 20
+)
