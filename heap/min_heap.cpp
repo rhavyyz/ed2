@@ -868,6 +868,39 @@ void q6()
 
 void q7()
 {
+
+    vector<int> el = {
+    18, 4, 3, 17, 14, 7, 11, 4, 1, 48, 16, 11, 16, 12, 81, 29, 45, 31, 23, 8    
+    };
+
+    auto process = [el](HeapPriorityQueue<int, 2, 100> & queue, int k) {
+        for(auto e : el) {
+            queue.insert({e, e});
+            cout << "Inserindo " << e << "\n";
+            if(queue.size() >k)
+                queue.pop();
+            queue.print();
+
+            cout << "\n";
+        }
+
+        cout << "\n";
+        cout << "Resposta:\n";
+        while (queue.size())
+        {
+            cout << queue.top().first << ", ";
+            queue.pop();
+        }
+    };
+
+    HeapPriorityQueue<int, 2, 100> queue_min, queue_max([](int a, int b){return a > b;});
+
+    int k1 = 3, k2 = 5;
+
+    process(queue_min, k1);
+    process(queue_max, k2);
+    
+
 }
 
 int main()
